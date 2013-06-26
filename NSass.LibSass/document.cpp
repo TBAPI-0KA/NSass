@@ -85,6 +85,8 @@ namespace Sass {
     const char *file_name_str = Prelexer::folders(path_str);
     string include_path(path_str, file_name_str - path_str);
 
+	bool hasBom = source[0]==(char)0xEF && source[1]==(char)0xBB && source[2]==(char)0xBF;
+	char *startNoBom = hasBom ? source + 3 : source;
     Document doc(ctx);
     doc.path        = path_str;
     doc.line        = 1;
@@ -93,7 +95,7 @@ namespace Sass {
     doc.own_source  = true;
     doc.source      = source;
     doc.end         = end;
-    doc.position    = source;
+    doc.position    = startNoBom;
     doc.context.source_refs.push_back(source);
 
     return doc;
