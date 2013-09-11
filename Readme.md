@@ -14,7 +14,7 @@ Primary development of NSass is completed at this moment. Features you can use:
 * high-level C# wrapper (however, without much of additional features)
 * HTTP handler for live SASS processing
 * Bundling and Minification support
-* install all of the above throught NuGet
+* install all of the above through NuGet
 
 Some minor features are under development.
 
@@ -59,7 +59,7 @@ PM> Install-Package NSass.Core
 Note about @import
 ------------------
 
-By default, NSass core adds current directory as import path while compilining a file. NSass handler additionaly adds web project root.
+By default, NSass core adds current directory as import path while compiling a file. NSass handler additionally adds web project root.
 So you may use both relative and absolute paths in includes. For example, if you have Site.scss in your Content folder, and this file includes Common.scss from the same folder, everything below will work in the same way:
 
 * @import "Common.scss";
