@@ -9,7 +9,7 @@ namespace NSass
 
 		public void ProcessRequest(HttpContext context)
 		{
-			string filename = context.Server.MapPath(String.Format("~{0}", context.Request.Path));
+			string filename = context.Server.MapPath(context.Request.AppRelativeCurrentExecutionFilePath);
 			string root = context.Server.MapPath("~");
 
 			string output = _sassCompiler.CompileFile(filename, additionalIncludePaths: new[] { root });
