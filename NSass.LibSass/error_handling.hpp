@@ -1,24 +1,32 @@
-#define SASS_ERROR_HANDLING
+#ifndef SASS_ERROR_HANDLING_H
+#define SASS_ERROR_HANDLING_H
+
 #include <string>
 
+#include "position.hpp"
+
 namespace Sass {
-	using namespace std;
+  using namespace std;
 
   struct Backtrace;
 
-  struct Error {
+  struct Sass_Error {
     enum Type { read, write, syntax, evaluation };
 
     Type type;
-    string path;
-    size_t line;
+    ParserState pstate;
     string message;
 
-    Error(Type type, string path, size_t line, string message);
+    Sass_Error(Type type, ParserState pstate, string message);
 
   };
 
-  void error(string msg, string path, size_t line);
-  void error(string msg, string path, size_t line, Backtrace* bt);
+  void warn(string msg, ParserState pstate);
+  void warn(string msg, ParserState pstate, Backtrace* bt);
+
+  void error(string msg, ParserState pstate);
+  void error(string msg, ParserState pstate, Backtrace* bt);
 
 }
+
+#endif

@@ -1,25 +1,35 @@
-#include "error_handling.hpp"
-#include "backtrace.hpp"
 #include "prelexer.hpp"
+#include "backtrace.hpp"
+#include "error_handling.hpp"
 
 namespace Sass {
 
-  Error::Error(Type type, string path, size_t line, string message)
-  : type(type), path(path), line(line), message(message)
+  Sass_Error::Sass_Error(Type type, ParserState pstate, string message)
+  : type(type), pstate(pstate), message(message)
   { }
 
-  void error(string msg, string path, size_t line)
-  { throw Error(Error::syntax, path, line, msg); }
-
-  void error(string msg, string path, size_t line, Backtrace* bt)
+  void warn(string msg, ParserState pstate)
   {
-    if (!path.empty() && Prelexer::string_constant(path.c_str()))
-      path = path.substr(1, path.size() - 1);
+    cerr << "Warning: " << msg<< endl;
+  }
 
-    Backtrace top(bt, path, line, "");
+  void warn(string msg, ParserState pstate, Backtrace* bt)
+  {
+    Backtrace top(bt, pstate, "");
     msg += top.to_string();
+    warn(msg, pstate);
+  }
 
-    throw Error(Error::syntax, path, line, msg);
+  void error(string msg, ParserState pstate)
+  {
+    throw Sass_Error(Sass_Error::syntax, pstate, msg);
+  }
+
+  void error(string msg, ParserState pstate, Backtrace* bt)
+  {
+    Backtrace top(bt, pstate, "");
+    msg += "\n" + top.to_string();
+    error(msg, pstate);
   }
 
 }

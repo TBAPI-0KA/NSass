@@ -1,16 +1,24 @@
 Libsass
 =======
 
-by Aaron Leung and Hampton Catlin (@hcatlin)
+by Aaron Leung ([@akhleung]) and Hampton Catlin ([@hcatlin])
 
-[![Build Status](https://secure.travis-ci.org/hcatlin/sassc.png?branch=master)](http://travis-ci.org/hcatlin/sassc)
+[![Linux CI](https://travis-ci.org/sass/libsass.png?branch=master)](https://travis-ci.org/sass/libsass)
+[![Windows CI](https://ci.appveyor.com/api/projects/status/github/sass/libsass?svg=true)](https://ci.appveyor.com/project/sass/libsass/branch/master)
+[![Bountysource](https://www.bountysource.com/badge/tracker?tracker_id=283068)](https://www.bountysource.com/trackers/283068-libsass?utm_source=283068&utm_medium=shield&utm_campaign=TRACKER_BADGE)
+[![Coverage Status](https://img.shields.io/coveralls/sass/libsass.svg)](https://coveralls.io/r/sass/libsass?branch=feature%2Ftest-travis-ci-3)
+[![Join us](https://libsass-slack.herokuapp.com/badge.svg)](https://libsass-slack.herokuapp.com/)
 
-http://github.com/hcatlin/libsass
+https://github.com/sass/libsass
 
 Libsass is just a library, but if you want to RUN libsass,
-then go to http://github.com/hcatlin/sassc or
-http://github.com/hcatlin/sassruby or find your local 
-implementer.
+then go to https://github.com/sass/sassc or
+https://github.com/sass/ruby-libsass or
+[find your local implementer](https://github.com/sass/libsass/wiki/Implementations).
+
+LibSass requires GCC 4.6+ or Clang/LLVM. If your OS is older, this version may not compile.
+
+On Windows, you need MinGW with GCC 4.6+ or VS 2013 Update 4+. It is also possible to build LibSass with Clang/LLVM on Windows.
 
 About
 -----
@@ -22,10 +30,10 @@ This library strives to be light, simple, and easy to build and integrate with a
 Developing
 ----------
 
-As you may have noticed, the libsass repo itself has 
+As you may have noticed, the libsass repo itself has
 no executables and no tests. Oh noes! How can you develop???
 
-Well, luckily, SassC is the official binary wrapper for 
+Well, luckily, SassC is the official binary wrapper for
 libsass and is *always* kept in sync. SassC uses a git submodule
 to include libsass. When developing libsass, its best to actually
 check out SassC and develop in that directory with the SassC spec
@@ -33,63 +41,56 @@ and tests there.
 
 We even run Travis tests for SassC!
 
-Usage
------
+Tests
+-------
 
-While libsass is primarily implemented in C++, it provides a simple
-C interface that is defined in [sass_inteface.h]. Its usage is pretty
-straight forward.
+Since libsass is a pure library, tests are run through the [SassSpec](https://github.com/sass/sass-spec) project using the [SassC](http://github.com/sass/sassc) driver.
 
-First, you create a sass context struct. We use these objects to define
-different execution parameters for the library. There are three 
-different context types. 
+To run tests against libsass while developing, you can run `./script/spec`. This will clone SassC and Sass-Spec under the project folder and then run the Sass-Spec test suite. You may want to update the clones to ensure you have the latest version.
 
-    sass_context        // string-in-string-out compilation
-    sass_file_context   // file-based compilation
-    sass_folder_context // full-folder multi-file 
+Library Usage
+-------------
 
-Each of the context's have slightly different behavior and are
-implemented seperately. This does add extra work to implementing
-a wrapper library, but we felt that a mixed-use context object
-provides for too much implicit logic. What if you set "input_string"
-AND "input_file"... what do we do? This would introduce bugs into
-wrapper libraries that would be difficult to debug. 
+While libsass is a library primarily written in C++, it provides a simple
+C interface which should be used by most implementers. Libsass does not do
+much on its own without an implementer. This can be a command line tool, like
+[sassc](https://github.com/sass/sassc) or a [binding](https://github.com/sass/libsass/wiki/Implementations)
+to your favorite programing language.
 
-We anticipate that most adapters in most languages will define
-their own logic for how to separate these use cases based on the
-language. For instance, the original Ruby interface has a combined
-interface, but is backed by three different processes.
-
-To generate a context, use one of the following methods.
-
-    sass_new_context()
-    sass_new_file_context()
-    sass_new_folder_context()
-
-Again, please see the sass_interface.h for more information.
-
-And, to get even more information, then please see the implementations
-in SassC and SassC-Ruby.
+If you want to build or interface with libsass, we recommend to check out the
+wiki pages about [building libsass](https://github.com/sass/libsass/wiki/Building-Libsass) and
+the [C-API documentation](https://github.com/sass/libsass/wiki/API-Documentation).
 
 About Sass
 ----------
 
-Sass is a CSS pre-processor language to add on exciting, new, 
+Sass is a CSS pre-processor language to add on exciting, new,
 awesome features to CSS. Sass was the first language of its kind
 and by far the most mature and up to date codebase.
 
-Sass was originally created by the co-creator of this library, 
-Hampton Catlin (@hcatlin). The extension and continuing evolution
-of the language has all been the result of years of work by Nathan
-Weizenbaum (@nex3) and Chris Eppstein (@chriseppstein). 
+Sass was originally created by the co-creator of this library,
+Hampton Catlin ([@hcatlin]). The extension and continuing evolution
+of the language has all been the result of years of work by Natalie
+Weizenbaum ([@nex3]) and Chris Eppstein ([@chriseppstein]).
 
 For more information about Sass itself, please visit http://sass-lang.com
 
 Contribution Agreement
 ----------------------
 
-Any contribution to the project are seen as copyright assigned to Hampton Catlin. Your contribution warrants that you have the right to assign copyright on your work. This is to ensure that the project remains free and open -- similar to the Apache Foundation.
+Any contribution to the project are seen as copyright assigned to Hampton Catlin, a
+human on the planet earth. Your contribution warrants that you have the right to
+assign copyright on your work. The intention here is to ensure that the project
+remains totally free (liberal, like).
 
-Our license is designed to be as simple as possible.
+Our MIT license is designed to be as simple, and liberal as possible.
 
+[@hcatlin]: https://github.com/hcatlin
+[@akhleung]: https://github.com/akhleung
+[@chriseppstein]: https://github.com/chriseppstein
+[@nex3]: https://github.com/nex3
 
+sass2scss was originally written by [Marcel Greter](@mgreter)
+and he happily agreed to have it merged into the project.
+
+[sass_interface.h]: sass_interface.h

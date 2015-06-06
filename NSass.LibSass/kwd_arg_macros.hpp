@@ -1,4 +1,7 @@
-// Intended usage:
+#ifndef SASS_KWD_ARG_MACROS_H
+#define SASS_KWD_ARG_MACROS_H
+
+// Example usage:
 // KWD_ARG_SET(Args) {
 //   KWD_ARG(Args, string, foo);
 //   KWD_ARG(Args, int, bar);
@@ -21,3 +24,5 @@ public: \
   } \
   type name() { return name##_; } \
 private:
+
+#endif

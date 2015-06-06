@@ -1,41 +1,40 @@
-#include "inspect.hpp"
-#include "ast.hpp"
-#include "context.hpp"
 #include <cmath>
+#include <string>
 #include <iostream>
 #include <iomanip>
+#include <stdint.h>
+#include <stdint.h>
+
+#include "ast.hpp"
+#include "inspect.hpp"
+#include "context.hpp"
+#include "utf8/checked.h"
 
 namespace Sass {
   using namespace std;
 
-  Inspect::Inspect(Context* ctx) : buffer(""), indentation(0), ctx(ctx) { }
+  Inspect::Inspect(Emitter emi)
+  : Emitter(emi)
+  { }
   Inspect::~Inspect() { }
 
   // statements
   void Inspect::operator()(Block* block)
   {
     if (!block->is_root()) {
-      buffer += " {\n";
-      ++indentation;
+      add_open_mapping(block);
+      append_scope_opener();
     }
+    if (output_style() == NESTED) indentation += block->tabs();
     for (size_t i = 0, L = block->length(); i < L; ++i) {
-      indent();
       (*block)[i]->perform(this);
-      // extra newline at the end of top-level statements
-      if (block->is_root()) buffer += '\n';
-      buffer += '\n';
     }
+    if (output_style() == NESTED) indentation -= block->tabs();
     if (!block->is_root()) {
-      --indentation;
-      indent();
-      buffer += "}";
+      append_scope_closer();
+      add_close_mapping(block);
     }
-    // remove extra newline that gets added after the last top-level block
-    if (block->is_root()) {
-      size_t l = buffer.length();
-      if (l > 2 && buffer[l-1] == '\n' && buffer[l-2] == '\n')
-        buffer.erase(l-1);
-    }
+
   }
 
   void Inspect::operator()(Ruleset* ruleset)
@@ -44,200 +43,367 @@ namespace Sass {
     ruleset->block()->perform(this);
   }
 
+  void Inspect::operator()(Keyframe_Rule* rule)
+  {
+    if (rule->selector()) rule->selector()->perform(this);
+    if (rule->block()) rule->block()->perform(this);
+  }
+
   void Inspect::operator()(Propset* propset)
   {
     propset->property_fragment()->perform(this);
-    buffer += ": ";
+    append_colon_separator();
     propset->block()->perform(this);
+  }
+
+  void Inspect::operator()(Bubble* bubble)
+  {
+    append_indentation();
+    append_token("::BUBBLE", bubble);
+    append_scope_opener();
+    bubble->node()->perform(this);
+    append_scope_closer();
   }
 
   void Inspect::operator()(Media_Block* media_block)
   {
-    buffer += "@media ";
+    append_indentation();
+    append_token("@media", media_block);
+    append_mandatory_space();
+    in_media_block = true;
     media_block->media_queries()->perform(this);
+    in_media_block = false;
     media_block->block()->perform(this);
+  }
+
+  void Inspect::operator()(Feature_Block* feature_block)
+  {
+    append_indentation();
+    append_token("@supports", feature_block);
+    append_mandatory_space();
+    feature_block->feature_queries()->perform(this);
+    feature_block->block()->perform(this);
+  }
+
+  void Inspect::operator()(At_Root_Block* at_root_block)
+  {
+    append_indentation();
+    append_token("@at-root ", at_root_block);
+    append_mandatory_space();
+    if(at_root_block->expression()) at_root_block->expression()->perform(this);
+    at_root_block->block()->perform(this);
   }
 
   void Inspect::operator()(At_Rule* at_rule)
   {
-    buffer += at_rule->keyword();
+    append_indentation();
+    append_token(at_rule->keyword(), at_rule);
     if (at_rule->selector()) {
-      buffer += ' ';
+      append_mandatory_space();
+      bool was_wrapped = in_wrapped;
+      in_wrapped = true;
       at_rule->selector()->perform(this);
+      in_wrapped = was_wrapped;
     }
     if (at_rule->block()) {
       at_rule->block()->perform(this);
     }
     else {
-      buffer += ';';
+      append_delimiter();
     }
   }
 
   void Inspect::operator()(Declaration* dec)
   {
+    if (dec->value()->concrete_type() == Expression::NULL_VAL) return;
+    bool was_decl = in_declaration;
+    in_declaration = true;
+    if (output_style() == NESTED)
+      indentation += dec->tabs();
+    append_indentation();
     dec->property()->perform(this);
-    buffer += ": ";
+    append_colon_separator();
     dec->value()->perform(this);
-    if (dec->is_important()) buffer += " !important";
-    buffer += ';';
+    if (dec->is_important()) {
+      append_optional_space();
+      append_string("!important");
+    }
+    append_delimiter();
+    if (output_style() == NESTED)
+      indentation -= dec->tabs();
+    in_declaration = was_decl;
   }
 
   void Inspect::operator()(Assignment* assn)
   {
-    buffer += assn->variable();
-    buffer += ": ";
+    append_token(assn->variable(), assn);
+    append_colon_separator();
     assn->value()->perform(this);
-    if (assn->is_guarded()) buffer += " !default";
-    buffer += ';';
+    if (assn->is_default()) {
+      append_optional_space();
+      append_string("!default");
+    }
+    append_delimiter();
   }
 
   void Inspect::operator()(Import* import)
   {
     if (!import->urls().empty()) {
-      buffer += "@import ";
+      append_token("@import", import);
+      append_mandatory_space();
+
+      if (String_Quoted* strq = dynamic_cast<String_Quoted*>(import->urls().front())) {
+        strq->is_delayed(false);
+      }
+
       import->urls().front()->perform(this);
-      buffer += ';';
+      append_delimiter();
       for (size_t i = 1, S = import->urls().size(); i < S; ++i) {
-        buffer += "\n@import ";
+        append_mandatory_linefeed();
+        append_token("@import", import);
+        append_mandatory_space();
+
+        if (String_Quoted* strq = dynamic_cast<String_Quoted*>(import->urls()[i])) {
+          strq->is_delayed(false);
+        }
+
         import->urls()[i]->perform(this);
-        buffer += ';';
+        append_delimiter();
       }
     }
   }
 
   void Inspect::operator()(Import_Stub* import)
   {
-    buffer += "@import ";
-    buffer += import->file_name();
-    buffer += ';';
+    append_indentation();
+    append_token("@import", import);
+    append_mandatory_space();
+    append_string(import->file_name());
+    append_delimiter();
   }
 
   void Inspect::operator()(Warning* warning)
   {
-    buffer += "@warn ";
+    append_indentation();
+    append_token("@warn", warning);
+    append_mandatory_space();
     warning->message()->perform(this);
-    buffer += ';';
+    append_delimiter();
+  }
+
+  void Inspect::operator()(Error* error)
+  {
+    append_indentation();
+    append_token("@error", error);
+    append_mandatory_space();
+    error->message()->perform(this);
+    append_delimiter();
+  }
+
+  void Inspect::operator()(Debug* debug)
+  {
+    append_indentation();
+    append_token("@debug", debug);
+    append_mandatory_space();
+    debug->value()->perform(this);
+    append_delimiter();
   }
 
   void Inspect::operator()(Comment* comment)
   {
+    in_comment = true;
     comment->text()->perform(this);
+    in_comment = false;
   }
 
   void Inspect::operator()(If* cond)
   {
-    buffer += "@if ";
+    append_indentation();
+    append_token("@if", cond);
+    append_mandatory_space();
     cond->predicate()->perform(this);
     cond->consequent()->perform(this);
     if (cond->alternative()) {
-      buffer += '\n';
-      indent();
-      buffer += "else";
+      append_optional_linefeed();
+      append_indentation();
+      append_string("else");
       cond->alternative()->perform(this);
     }
   }
 
   void Inspect::operator()(For* loop)
   {
-    buffer += string("@for ");
-    buffer += loop->variable();
-    buffer += " from ";
+    append_indentation();
+    append_token("@for", loop);
+    append_mandatory_space();
+    append_string(loop->variable());
+    append_string(" from ");
     loop->lower_bound()->perform(this);
-    buffer += (loop->is_inclusive() ? " through " : " to ");
+    append_string(loop->is_inclusive() ? " through " : " to ");
     loop->upper_bound()->perform(this);
     loop->block()->perform(this);
   }
 
   void Inspect::operator()(Each* loop)
   {
-    buffer += string("@each ");
-    buffer += loop->variable();
-    buffer += " in ";
+    append_indentation();
+    append_token("@each", loop);
+    append_mandatory_space();
+    append_string(loop->variables()[0]);
+    for (size_t i = 1, L = loop->variables().size(); i < L; ++i) {
+      append_comma_separator();
+      append_string(loop->variables()[i]);
+    }
+    append_string(" in ");
     loop->list()->perform(this);
     loop->block()->perform(this);
   }
 
   void Inspect::operator()(While* loop)
   {
-    buffer += "@while ";
+    append_indentation();
+    append_token("@while", loop);
+    append_mandatory_space();
     loop->predicate()->perform(this);
     loop->block()->perform(this);
   }
 
   void Inspect::operator()(Return* ret)
   {
-    buffer += "@return ";
+    append_indentation();
+    append_token("@return", ret);
+    append_mandatory_space();
     ret->value()->perform(this);
-    buffer += ';';
+    append_delimiter();
   }
 
   void Inspect::operator()(Extension* extend)
   {
-    buffer += "@extend ";
+    append_indentation();
+    append_token("@extend", extend);
+    append_mandatory_space();
     extend->selector()->perform(this);
-    buffer += ';';
+    append_delimiter();
   }
 
   void Inspect::operator()(Definition* def)
   {
-    if (def->type() == Definition::MIXIN) buffer += "@mixin ";
-    else                                  buffer += "@function ";
-    buffer += def->name();
+    append_indentation();
+    if (def->type() == Definition::MIXIN) {
+      append_token("@mixin", def);
+      append_mandatory_space();
+    } else {
+      append_token("@function", def);
+      append_mandatory_space();
+    }
+    append_string(def->name());
     def->parameters()->perform(this);
     def->block()->perform(this);
   }
 
   void Inspect::operator()(Mixin_Call* call)
   {
-    buffer += string("@include ") += call->name();
+    append_indentation();
+    append_token("@include", call);
+    append_mandatory_space();
+    append_string(call->name());
     if (call->arguments()) {
       call->arguments()->perform(this);
     }
     if (call->block()) {
-      buffer += ' ';
+      append_optional_space();
       call->block()->perform(this);
     }
-    if (!call->block()) buffer += ';';
+    if (!call->block()) append_delimiter();
   }
 
   void Inspect::operator()(Content* content)
   {
-    buffer += "@content;";
+    append_indentation();
+    append_token("@content", content);
+    append_delimiter();
+  }
+
+  void Inspect::operator()(Map* map)
+  {
+    if (map->empty()) return;
+    if (map->is_invisible()) return;
+    bool items_output = false;
+    append_string("(");
+    for (auto key : map->keys()) {
+      if (key->is_invisible()) continue;
+      if (map->at(key)->is_invisible()) continue;
+      if (items_output) append_comma_separator();
+      key->perform(this);
+      append_colon_separator();
+      map->at(key)->perform(this);
+      items_output = true;
+    }
+    append_string(")");
   }
 
   void Inspect::operator()(List* list)
   {
-    string sep(list->separator() == List::SPACE ? " " : ", ");
+    string sep(list->separator() == List::SPACE ? " " : ",");
+    if (output_style() != COMPRESSED && sep == ",") sep += " ";
+    else if (in_media_block && sep != " ") sep += " "; // verified
     if (list->empty()) return;
-    Expression* first = (*list)[0];
-    bool first_invisible = first->is_invisible();
-    if (!first_invisible) first->perform(this);
-    for (size_t i = 1, L = list->length(); i < L; ++i) {
-      Expression* next = (*list)[i];
-      bool next_invisible = next->is_invisible();
-      if (i == 1 && !first_invisible && !next_invisible) buffer += sep;
-      else if (!next_invisible)                          buffer += sep;
-      next->perform(this);
+    bool items_output = false;
+
+    bool was_space_array = in_space_array;
+    bool was_comma_array = in_comma_array;
+    if (!in_declaration && (
+        (list->separator() == List::SPACE && in_space_array) ||
+        (list->separator() == List::COMMA && in_comma_array)
+    )) {
+      append_string("(");
     }
+
+    if (list->separator() == List::SPACE) in_space_array = true;
+    else if (list->separator() == List::COMMA) in_comma_array = true;
+
+    for (size_t i = 0, L = list->size(); i < L; ++i) {
+      Expression* list_item = (*list)[i];
+      if (list_item->is_invisible()) {
+        continue;
+      }
+      if (items_output) {
+        append_string(sep);
+      }
+      if (items_output && sep != " ")
+        append_optional_space();
+      list_item->perform(this);
+      items_output = true;
+    }
+
+    in_comma_array = was_comma_array;
+    in_space_array = was_space_array;
+    if (!in_declaration && (
+        (list->separator() == List::SPACE && in_space_array) ||
+        (list->separator() == List::COMMA && in_comma_array)
+    )) {
+      append_string(")");
+    }
+
   }
 
   void Inspect::operator()(Binary_Expression* expr)
   {
     expr->left()->perform(this);
     switch (expr->type()) {
-      case Binary_Expression::AND: buffer += " and "; break;
-      case Binary_Expression::OR:  buffer += " or ";  break;
-      case Binary_Expression::EQ:  buffer += " == ";  break;
-      case Binary_Expression::NEQ: buffer += " != ";  break;
-      case Binary_Expression::GT:  buffer += " > ";   break;
-      case Binary_Expression::GTE: buffer += " >= ";  break;
-      case Binary_Expression::LT:  buffer += " < ";   break;
-      case Binary_Expression::LTE: buffer += " <= ";  break;
-      case Binary_Expression::ADD: buffer += " + ";   break;
-      case Binary_Expression::SUB: buffer += " - ";   break;
-      case Binary_Expression::MUL: buffer += " * ";   break;
-      case Binary_Expression::DIV: buffer += "/";     break;
-      case Binary_Expression::MOD: buffer += " % ";   break;
+      case Binary_Expression::AND: append_string(" and "); break;
+      case Binary_Expression::OR:  append_string(" or ");  break;
+      case Binary_Expression::EQ:  append_string(" == ");  break;
+      case Binary_Expression::NEQ: append_string(" != ");  break;
+      case Binary_Expression::GT:  append_string(" > ");   break;
+      case Binary_Expression::GTE: append_string(" >= ");  break;
+      case Binary_Expression::LT:  append_string(" < ");   break;
+      case Binary_Expression::LTE: append_string(" <= ");  break;
+      case Binary_Expression::ADD: append_string(" + ");   break;
+      case Binary_Expression::SUB: append_string(" - ");   break;
+      case Binary_Expression::MUL: append_string(" * ");   break;
+      case Binary_Expression::DIV: append_string("/");     break;
+      case Binary_Expression::MOD: append_string(" % ");   break;
       default: break; // shouldn't get here
     }
     expr->right()->perform(this);
@@ -245,14 +411,14 @@ namespace Sass {
 
   void Inspect::operator()(Unary_Expression* expr)
   {
-    if (expr->type() == Unary_Expression::PLUS) buffer += '+';
-    else                                        buffer += '-';
+    if (expr->type() == Unary_Expression::PLUS) append_string("+");
+    else                                        append_string("-");
     expr->operand()->perform(this);
   }
 
   void Inspect::operator()(Function_Call* call)
   {
-    buffer += call->name();
+    append_token(call->name(), call);
     call->arguments()->perform(this);
   }
 
@@ -264,52 +430,101 @@ namespace Sass {
 
   void Inspect::operator()(Variable* var)
   {
-    buffer += var->name();
+    append_token(var->name(), var);
   }
 
   void Inspect::operator()(Textual* txt)
   {
-    buffer += txt->value();
-  }
-
-  // helper functions for serializing numbers
-  string frac_to_string(double f, size_t p) {
-    stringstream ss;
-    ss.setf(ios::fixed, ios::floatfield);
-    ss.precision(p);
-    ss << f;
-    string result(ss.str().substr(f < 0 ? 2 : 1));
-    size_t i = result.size() - 1;
-    while (result[i] == '0') --i;
-    result = result.substr(0, i+1);
-    return result;
-  }
-  string double_to_string(double d, size_t p) {
-    stringstream ss;
-    double ipart;
-    double fpart = std::modf(d, &ipart);
-    ss << ipart;
-    if (fpart != 0) ss << frac_to_string(fpart, 5);
-    return ss.str();
+    append_token(txt->value(), txt);
   }
 
   void Inspect::operator()(Number* n)
   {
-    // buffer += double_to_string(n->value(), 5);
-    // buffer += n->unit();
+
+    string res;
+
+    // init stuff
+    n->normalize();
+    int precision = 5;
+    double value = n->value();
+    // get option from optional context
+    if (ctx) precision = ctx->precision;
+
+    // check if the fractional part of the value equals to zero
+    // neat trick from http://stackoverflow.com/a/1521682/1550314
+    // double int_part; bool is_int = modf(value, &int_part) == 0.0;
+
+    // this all cannot be done with one run only, since fixed
+    // output differs from normal output and regular output
+    // can contain scientific notation which we do not want!
+
+    // first sample
     stringstream ss;
-    ss.precision(5);
-    ss << fixed << n->value();
-    string d(ss.str());
-    for (size_t i = d.length()-1; d[i] == '0'; --i) {
-      d.resize(d.length()-1);
+    ss.precision(12);
+    ss << value;
+
+    // check if we got scientific notation in result
+    if (ss.str().find_first_of("e") != string::npos) {
+      ss.clear(); ss.str(string());
+      ss.precision(max(12, precision));
+      ss << fixed << value;
     }
-    if (d[d.length()-1] == '.') d.resize(d.length()-1);
-    if (n->numerator_units().size() > 1 || n->denominator_units().size() > 0) {
-      error(d + n->unit() + " is not a valid CSS value", n->path(), n->line());
+
+    string tmp = ss.str();
+    size_t pos_point = tmp.find_first_of(".,");
+    size_t pos_fract = tmp.find_last_not_of("0");
+    bool is_int = pos_point == pos_fract ||
+                  pos_point == string::npos;
+
+    // reset stream for another run
+    ss.clear(); ss.str(string());
+
+    // take a shortcut for integers
+    if (is_int)
+    {
+      ss.precision(0);
+      ss << fixed << value;
+      res = string(ss.str());
     }
-    buffer += d;
-    buffer += n->unit();
+    // process floats
+    else
+    {
+      // do we have have too much precision?
+      if (pos_fract < precision + pos_point)
+      { precision = pos_fract - pos_point; }
+      // round value again
+      ss.precision(precision);
+      ss << fixed << value;
+      res = string(ss.str());
+      // maybe we truncated up to decimal point
+      size_t pos = res.find_last_not_of("0");
+      bool at_dec_point = res[pos] == '.' ||
+                          res[pos] == ',';
+      // don't leave a blank point
+      if (at_dec_point) ++ pos;
+      res.resize (pos + 1);
+    }
+
+    // some final cosmetics
+    if (res == "-0.0") res.erase(0, 1);
+    else if (res == "-0") res.erase(0, 1);
+
+    // add unit now
+    res += n->unit();
+
+    // check for a valid unit here
+    // includes result for reporting
+    if (n->numerator_units().size() > 1 ||
+        n->denominator_units().size() > 0 ||
+        (n->numerator_units().size() && n->numerator_units()[0].find_first_of('/') != string::npos) ||
+        (n->numerator_units().size() && n->numerator_units()[0].find_first_of('*') != string::npos)
+    ) {
+      error(res + " isn't a valid CSS value.", n->pstate());
+    }
+
+    // output the final token
+    append_token(res, n);
+
   }
 
   // helper function for serializing colors
@@ -323,44 +538,87 @@ namespace Sass {
   void Inspect::operator()(Color* c)
   {
     stringstream ss;
-    double r = cap_channel<0xff>(c->r());
-    double g = cap_channel<0xff>(c->g());
-    double b = cap_channel<0xff>(c->b());
+
+    // check if we prefer short hex colors
+    bool want_short = output_style() == COMPRESSED;
+
+    // original color name
+    // maybe an unknown token
+    string name = c->disp();
+
+    // resolved color
+    string res_name = name;
+
+    double r = round(cap_channel<0xff>(c->r()));
+    double g = round(cap_channel<0xff>(c->g()));
+    double b = round(cap_channel<0xff>(c->b()));
     double a = cap_channel<1>   (c->a());
 
-    // if (a >= 1 && ctx.colors_to_names.count(numval)) {
-    //   ss << ctx.colors_to_names[numval];
-    // }
-    // else
-    if (a >= 1) {
-      // see if it's a named color
-      int numval = r * 0x10000;
-      numval += g * 0x100;
-      numval += b;
-      if (ctx && ctx->colors_to_names.count(numval)) {
-        ss << ctx->colors_to_names[numval];
+    // get color from given name (if one was given at all)
+    if (name != "" && ctx && ctx->names_to_colors.count(name)) {
+      Color* n = ctx->names_to_colors[name];
+      r = round(cap_channel<0xff>(n->r()));
+      g = round(cap_channel<0xff>(n->g()));
+      b = round(cap_channel<0xff>(n->b()));
+      a = cap_channel<1>   (n->a());
+    }
+    // otherwise get the possible resolved color name
+    else {
+      int numval = static_cast<int>(r) * 0x10000 + static_cast<int>(g) * 0x100 + static_cast<int>(b);
+      if (ctx && ctx->colors_to_names.count(numval))
+        res_name = ctx->colors_to_names[numval];
+    }
+
+    stringstream hexlet;
+    hexlet << '#' << setw(1) << setfill('0');
+    // create a short color hexlet if there is any need for it
+    if (want_short && is_color_doublet(r, g, b) && a == 1) {
+      hexlet << hex << setw(1) << (static_cast<unsigned long>(r) >> 4);
+      hexlet << hex << setw(1) << (static_cast<unsigned long>(g) >> 4);
+      hexlet << hex << setw(1) << (static_cast<unsigned long>(b) >> 4);
+    } else {
+      hexlet << hex << setw(2) << static_cast<unsigned long>(r);
+      hexlet << hex << setw(2) << static_cast<unsigned long>(g);
+      hexlet << hex << setw(2) << static_cast<unsigned long>(b);
+    }
+
+    if (want_short && !c->is_delayed()) name = "";
+
+    // retain the originally specified color definition if unchanged
+    if (name != "") {
+      ss << name;
+    }
+    else if (r == 0 && g == 0 && b == 0 && a == 0) {
+        ss << "transparent";
+    }
+    else if (a >= 1) {
+      if (res_name != "") {
+        if (want_short && hexlet.str().size() < res_name.size()) {
+          ss << hexlet.str();
+        } else {
+          ss << res_name;
+        }
       }
       else {
-        // otherwise output the hex triplet
-        ss << '#' << setw(2) << setfill('0');
-        ss << hex << setw(2) << static_cast<unsigned long>(floor(r+0.5));
-        ss << hex << setw(2) << static_cast<unsigned long>(floor(g+0.5));
-        ss << hex << setw(2) << static_cast<unsigned long>(floor(b+0.5));
+        ss << hexlet.str();
       }
     }
     else {
       ss << "rgba(";
-      ss << static_cast<unsigned long>(r) << ", ";
-      ss << static_cast<unsigned long>(g) << ", ";
-      ss << static_cast<unsigned long>(b) << ", ";
+      ss << static_cast<unsigned long>(r) << ",";
+      if (output_style() != COMPRESSED) ss << " ";
+      ss << static_cast<unsigned long>(g) << ",";
+      if (output_style() != COMPRESSED) ss << " ";
+      ss << static_cast<unsigned long>(b) << ",";
+      if (output_style() != COMPRESSED) ss << " ";
       ss << a << ')';
     }
-    buffer += ss.str();
+    append_token(ss.str(), c);
   }
 
   void Inspect::operator()(Boolean* b)
   {
-    buffer += (b->value() ? "true" : "false");
+    append_token(b->value() ? "true" : "false", b);
   }
 
   void Inspect::operator()(String_Schema* ss)
@@ -368,30 +626,80 @@ namespace Sass {
     // Evaluation should turn these into String_Constants, so this method is
     // only for inspection purposes.
     for (size_t i = 0, L = ss->length(); i < L; ++i) {
-      if ((*ss)[i]->is_interpolant()) buffer += "#{";
+      if ((*ss)[i]->is_interpolant()) append_string("#{");
       (*ss)[i]->perform(this);
-      if ((*ss)[i]->is_interpolant()) buffer += '}';
+      if ((*ss)[i]->is_interpolant()) append_string("}");
     }
   }
 
   void Inspect::operator()(String_Constant* s)
   {
-    buffer += (s->needs_unquoting() ? unquote(s->value()) : s->value());
+    if (String_Quoted* quoted = dynamic_cast<String_Quoted*>(s)) {
+      return Inspect::operator()(quoted);
+    }
+    append_token(s->value(), s);
+  }
+
+  void Inspect::operator()(String_Quoted* s)
+  {
+    if (s->quote_mark()) {
+      append_token(quote(s->value(), s->quote_mark(), true), s);
+    } else {
+      append_token(s->value(), s);
+    }
+  }
+
+  void Inspect::operator()(Feature_Query* fq)
+  {
+    size_t i = 0;
+    (*fq)[i++]->perform(this);
+    for (size_t L = fq->length(); i < L; ++i) {
+      (*fq)[i]->perform(this);
+    }
+  }
+
+  void Inspect::operator()(Feature_Query_Condition* fqc)
+  {
+    if (fqc->operand() == Feature_Query_Condition::AND) {
+      append_mandatory_space();
+      append_token("and", fqc);
+      append_mandatory_space();
+    } else if (fqc->operand() == Feature_Query_Condition::OR) {
+      append_mandatory_space();
+      append_token("or", fqc);
+      append_mandatory_space();
+    } else if (fqc->operand() == Feature_Query_Condition::NOT) {
+      append_mandatory_space();
+      append_token("not", fqc);
+      append_mandatory_space();
+    }
+
+    if (!fqc->is_root()) append_string("(");
+
+    if (!fqc->length()) {
+      fqc->feature()->perform(this);
+      append_string(": "); // verified
+      fqc->value()->perform(this);
+    }
+    for (size_t i = 0, L = fqc->length(); i < L; ++i)
+      (*fqc)[i]->perform(this);
+
+    if (!fqc->is_root()) append_string(")");
   }
 
   void Inspect::operator()(Media_Query* mq)
   {
     size_t i = 0;
     if (mq->media_type()) {
-      if      (mq->is_negated())    buffer += "not ";
-      else if (mq->is_restricted()) buffer += "only ";
+      if      (mq->is_negated())    append_string("not ");
+      else if (mq->is_restricted()) append_string("only ");
       mq->media_type()->perform(this);
     }
     else {
       (*mq)[i++]->perform(this);
     }
     for (size_t L = mq->length(); i < L; ++i) {
-      buffer += " and ";
+      append_string(" and ");
       (*mq)[i]->perform(this);
     }
   }
@@ -402,73 +710,107 @@ namespace Sass {
       mqe->feature()->perform(this);
     }
     else {
-      buffer += "(";
+      append_string("(");
       mqe->feature()->perform(this);
       if (mqe->value()) {
-        buffer += ": ";
+        append_string(": "); // verified
         mqe->value()->perform(this);
       }
-      buffer += ')';
+      append_string(")");
     }
   }
 
-  // void Inspect::operator()(Null* n)
-  // {
-  //   buffer += "null";
-  // }
+  void Inspect::operator()(At_Root_Expression* ae)
+  {
+    if (ae->is_interpolated()) {
+      ae->feature()->perform(this);
+    }
+    else {
+      append_string("(");
+      ae->feature()->perform(this);
+      if (ae->value()) {
+        append_colon_separator();
+        ae->value()->perform(this);
+      }
+      append_string(")");
+    }
+  }
+
+  void Inspect::operator()(Null* n)
+  {
+    append_token("null", n);
+  }
+
+  void Inspect::operator()(Parent_Selector* p)
+  {
+    if (p->selector()) {
+      p->selector()->perform(this);
+      append_delimiter();
+    }
+    else {
+      append_string("&");
+    }
+  }
 
   // parameters and arguments
   void Inspect::operator()(Parameter* p)
   {
-    buffer += p->name();
+    append_token(p->name(), p);
     if (p->default_value()) {
-      buffer += ": ";
+      append_colon_separator();
       p->default_value()->perform(this);
     }
     else if (p->is_rest_parameter()) {
-      buffer += "...";
+      append_string("...");
     }
   }
 
   void Inspect::operator()(Parameters* p)
   {
-    buffer += '(';
+    append_string("(");
     if (!p->empty()) {
       (*p)[0]->perform(this);
       for (size_t i = 1, L = p->length(); i < L; ++i) {
-        buffer += ", ";
+        append_comma_separator();
         (*p)[i]->perform(this);
       }
     }
-    buffer += ')';
+    append_string(")");
   }
 
   void Inspect::operator()(Argument* a)
   {
     if (!a->name().empty()) {
-      buffer += a->name();
-      buffer += ": ";
+      append_token(a->name(), a);
+      append_colon_separator();
     }
-    a->value()->perform(this);
+    // Special case: argument nulls can be ignored
+    if (a->value()->concrete_type() == Expression::NULL_VAL) {
+      return;
+    }
+    if (a->value()->concrete_type() == Expression::STRING) {
+      String_Constant* s = static_cast<String_Constant*>(a->value());
+      s->perform(this);
+    } else a->value()->perform(this);
     if (a->is_rest_argument()) {
-      buffer += "...";
+      append_string("...");
     }
   }
 
   void Inspect::operator()(Arguments* a)
   {
-    buffer += '(';
+    append_string("(");
     if (!a->empty()) {
       (*a)[0]->perform(this);
       for (size_t i = 1, L = a->length(); i < L; ++i) {
-        buffer += ", ";
+        append_string(", "); // verified
+        // Sass Bug? append_comma_separator();
         (*a)[i]->perform(this);
       }
     }
-    buffer += ')';
+    append_string(")");
   }
 
-  // selectors
   void Inspect::operator()(Selector_Schema* s)
   {
     s->contents()->perform(this);
@@ -477,126 +819,129 @@ namespace Sass {
   void Inspect::operator()(Selector_Reference* ref)
   {
     if (ref->selector()) ref->selector()->perform(this);
-    else                 buffer += '&';
+    else                 append_string("&");
   }
 
   void Inspect::operator()(Selector_Placeholder* s)
   {
-    buffer += s->name();
+    append_token(s->name(), s);
+    if (s->has_line_break()) append_optional_linefeed();
+    if (s->has_line_break()) append_indentation();
+
   }
 
   void Inspect::operator()(Type_Selector* s)
   {
-    buffer += s->name();
+    append_token(s->name(), s);
   }
 
   void Inspect::operator()(Selector_Qualifier* s)
   {
-    buffer += s->name();
+    append_token(s->name(), s);
+    if (s->has_line_break()) append_optional_linefeed();
+    if (s->has_line_break()) append_indentation();
   }
 
   void Inspect::operator()(Attribute_Selector* s)
   {
-    buffer += '[';
-    buffer += s->name();
+    append_string("[");
+    add_open_mapping(s);
+    append_token(s->name(), s);
     if (!s->matcher().empty()) {
-      buffer += s->matcher();
-      buffer += s->value();
+      append_string(s->matcher());
+      if (s->value()) {
+        s->value()->perform(this);
+      }
     }
-    buffer += ']';
+    add_close_mapping(s);
+    append_string("]");
   }
 
   void Inspect::operator()(Pseudo_Selector* s)
   {
-    buffer += s->name();
+    append_token(s->name(), s);
     if (s->expression()) {
       s->expression()->perform(this);
-      buffer += ')';
+      append_string(")");
     }
   }
 
-  void Inspect::operator()(Negated_Selector* s)
+  void Inspect::operator()(Wrapped_Selector* s)
   {
-    buffer += ":not(";
+    bool was = in_wrapped;
+    in_wrapped = true;
+    append_token(s->name(), s);
     s->selector()->perform(this);
-    buffer += ')';
+    append_string(")");
+    in_wrapped = was;
   }
 
-  void Inspect::operator()(Simple_Selector_Sequence* s)
+  void Inspect::operator()(Compound_Selector* s)
   {
     for (size_t i = 0, L = s->length(); i < L; ++i) {
       (*s)[i]->perform(this);
     }
+    if (s->has_line_break()) {
+      append_optional_linefeed();
+    }
   }
 
-  void Inspect::operator()(Selector_Combination* c)
+  void Inspect::operator()(Complex_Selector* c)
   {
-    Simple_Selector_Sequence*        head = c->head();
-    Selector_Combination*            tail = c->tail();
-    Selector_Combination::Combinator comb = c->combinator();
-    if (head) head->perform(this);
-    if (head && tail) buffer += ' ';
+    Compound_Selector*           head = c->head();
+    Complex_Selector*            tail = c->tail();
+    Complex_Selector::Combinator comb = c->combinator();
+    if (head && !head->is_empty_reference()) head->perform(this);
+    bool is_empty = head && head->is_empty_reference();
+    bool is_tail = head && !head->is_empty_reference() && tail;
+    if (output_style() == COMPRESSED && comb != Complex_Selector::ANCESTOR_OF) scheduled_space = 0;
+
     switch (comb) {
-      case Selector_Combination::ANCESTOR_OF:                break;
-      case Selector_Combination::PARENT_OF:   buffer += '>'; break;
-      case Selector_Combination::PRECEDES:    buffer += '~'; break;
-      case Selector_Combination::ADJACENT_TO: buffer += '+'; break;
+      case Complex_Selector::ANCESTOR_OF:
+        if (is_tail) append_mandatory_space();
+      break;
+      case Complex_Selector::PARENT_OF:
+        append_optional_space();
+        append_string(">");
+        append_optional_space();
+      break;
+      case Complex_Selector::ADJACENT_TO:
+        append_optional_space();
+        append_string("+");
+        append_optional_space();
+      break;
+      case Complex_Selector::PRECEDES:
+        if (is_empty) append_optional_space();
+        else append_mandatory_space();
+        append_string("~");
+        if (tail) append_mandatory_space();
+        else append_optional_space();
+      break;
     }
-    if (tail && comb != Selector_Combination::ANCESTOR_OF) {
-      buffer += ' ';
+    if (tail && comb != Complex_Selector::ANCESTOR_OF) {
+      if (c->has_line_break()) append_optional_linefeed();
     }
     if (tail) tail->perform(this);
   }
 
-  void Inspect::operator()(Selector_Group* g)
+  void Inspect::operator()(Selector_List* g)
   {
     if (g->empty()) return;
-    (*g)[0]->perform(this);
-    for (size_t i = 1, L = g->length(); i < L; ++i) {
-      buffer += ", ";
+    for (size_t i = 0, L = g->length(); i < L; ++i) {
+      if (!in_wrapped && i == 0) append_indentation();
       (*g)[i]->perform(this);
+      if (i < L - 1) {
+        append_comma_separator();
+        if ((*g)[i]->has_line_feed()) {
+          append_optional_linefeed();
+          append_indentation();
+        }
+      }
     }
   }
 
-  inline void Inspect::fallback_impl(AST_Node* n)
-  { }
-
-  void Inspect::indent()
-  { buffer += string(2*indentation, ' '); }
-
-  string unquote(const string& s)
+  void Inspect::fallback_impl(AST_Node* n)
   {
-    if (s.empty()) return "";
-    if (s.length() == 1) {
-      if (s[0] == '"' || s[0] == '\'') return "";
-    }
-    char q;
-    if      (*s.begin() == '"'  && *s.rbegin() == '"')  q = '"';
-    else if (*s.begin() == '\'' && *s.rbegin() == '\'') q = '\'';
-    else                                                return s;
-    string t;
-    t.reserve(s.length()-2);
-    for (size_t i = 1, L = s.length()-1; i < L; ++i) {
-      // if we see a quote, we need to remove the preceding backslash from t
-      if (s[i] == q) t.erase(t.length()-1);
-      t.push_back(s[i]);
-    }
-    return t;
-  }
-
-  string quote(const string& s, char q)
-  {
-    if (s.empty()) return string(2, q);
-    if (!q || s[0] == '"' || s[0] == '\'') return s;
-    string t;
-    t.reserve(s.length()+2);
-    t.push_back(q);
-    for (size_t i = 0, L = s.length(); i < L; ++i) {
-      if (s[i] == q) t.push_back('\\');
-      t.push_back(s[i]);
-    }
-    t.push_back(q);
-    return t;
   }
 
 }

@@ -1,130 +1,68 @@
-#define SASS
+#ifndef SASS_H
+#define SASS_H
 
-#ifdef __cplusplus
-extern "C" {
-#else
 #include <stddef.h>
+#include <stdbool.h>
+
+#ifdef __GNUC__
+  #define DEPRECATED(func) func __attribute__ ((deprecated))
+#elif defined(_MSC_VER)
+  #define DEPRECATED(func) __declspec(deprecated) func
+#else
+  #pragma message("WARNING: You need to implement DEPRECATED for this compiler")
+  #define DEPRECATED(func) func
 #endif
 
-#define SASS_OUTPUT_NESTED     0
-#define SASS_OUTPUT_EXPANDED   1
-#define SASS_OUTPUT_COMPACT    2
-#define SASS_OUTPUT_COMPRESSED 3
-#define SASS_OUTPUT_FORMATTED  4
+#ifdef _WIN32
 
-struct Sass_Context {
-  const char*  input_path;
-  const char*  input_string;
-  char*        output_string;
+  /* You should define ADD_EXPORTS *only* when building the DLL. */
+  #ifdef ADD_EXPORTS
+    #define ADDAPI __declspec(dllexport)
+	#define ADDCALL __cdecl
+  #else
+    #define ADDAPI
+	#define ADDCALL
+  #endif
 
-  int          error_status;
-  char*        error_message;
+#else /* _WIN32 not defined. */
 
-  int          output_style;
-  int          source_comments;
-  int          source_maps;
-  const char*  image_path;
-  const char*  include_paths_string;
-  const char** include_paths_array;
+  /* Define with no value on non-Windows OSes. */
+  #define ADDAPI
+  #define ADDCALL
+
+#endif
+
+// include API headers
+#include "sass_version.h"
+#include "sass_values.h"
+#include "sass_functions.h"
+
+/* Make sure functions are exported with C linkage under C++ compilers. */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+// Different render styles
+enum Sass_Output_Style {
+  SASS_STYLE_NESTED,
+  SASS_STYLE_EXPANDED,
+  SASS_STYLE_COMPACT,
+  SASS_STYLE_COMPRESSED
 };
 
-struct Sass_Context* make_sass_context   ();
-void                 free_sass_context   (struct Sass_Context*);
-void                 compile_sass_file   (struct Sass_Context*);
-void                 compile_sass_string (struct Sass_Context*);
+// Some convenient string helper function
+ADDAPI char* ADDCALL sass_string_quote (const char* str, const char quote_mark);
+ADDAPI char* ADDCALL sass_string_unquote (const char* str);
 
-// type tags for Sass values
-enum Sass_Tag {
-  SASS_BOOLEAN,
-  SASS_NUMBER,
-  SASS_COLOR,
-  SASS_STRING,
-  SASS_LIST,
-  SASS_NULL,
-  SASS_ERROR
-};
+// Resolve a file via the given include paths in the include char* array
+ADDAPI char* ADDCALL sass_resolve_file (const char* path, const char* incs[]);
 
-// tags for denoting Sass list separators
-enum Sass_Separator {
-  SASS_COMMA,
-  SASS_SPACE
-};
-
-// Component structs for the Sass value union type.
-// Not meant to be used directly.
-struct Sass_Unknown {
-  enum Sass_Tag tag;
-};
-
-struct Sass_Boolean {
-  enum Sass_Tag tag;
-  int           value;
-};
-
-struct Sass_Number {
-  enum Sass_Tag tag;
-  double        value;
-  char*         unit;
-};
-
-struct Sass_Color {
-  enum Sass_Tag tag;
-  double        r;
-  double        g;
-  double        b;
-  double        a;
-};
-
-struct Sass_String {
-  enum Sass_Tag tag;
-  char*         value;
-};
-
-union Sass_Value;
-
-struct Sass_List {
-  enum Sass_Tag       tag;
-  enum Sass_Separator separator;
-  size_t              length;
-  union Sass_Value*   values;
-};
-
-struct Sass_Null {
-  enum Sass_Tag tag;
-};
-
-struct Sass_Error {
-  enum Sass_Tag tag;
-  char*         message;
-};
-
-// represention of Sass values in C
-union Sass_Value {
-  struct Sass_Unknown unknown;
-  struct Sass_Boolean boolean;
-  struct Sass_Number  number;
-  struct Sass_Color   color;
-  struct Sass_String  string;
-  struct Sass_List    list;
-  struct Sass_Null    null;
-  struct Sass_Error   error;
-};
-
-union Sass_Value make_sass_boolean (int val);
-union Sass_Value make_sass_number  (double val, const char* unit);
-union Sass_Value make_sass_color   (double r, double g, double b, double a);
-union Sass_Value make_sass_string  (const char* val);
-union Sass_Value make_sass_list    (size_t len, enum Sass_Separator sep);
-union Sass_Value make_sass_null    ();
-union Sass_Value make_sass_error   (const char* msg);
-
-typedef union Sass_Value(*Sass_C_Function)(union Sass_Value);
-
-struct Sass_C_Function_Descriptor {
-  const char*     signature;
-  Sass_C_Function function;
-};
+// Get compiled libsass version
+ADDAPI const char* ADDCALL libsass_version(void);
 
 #ifdef __cplusplus
-}
+} // __cplusplus defined.
+#endif
+
 #endif

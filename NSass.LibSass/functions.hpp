@@ -1,30 +1,27 @@
-#define SASS_FUNCTIONS
-
-#ifndef SASS_ENVIRONMENT
-#include "environment.hpp"
-#endif
-
-#ifndef SASS
-#include "sass.h"
-#endif
+#ifndef SASS_FUNCTIONS_H
+#define SASS_FUNCTIONS_H
 
 #include <string>
 
+#include "position.hpp"
+#include "environment.hpp"
+#include "sass_functions.h"
+
 #define BUILT_IN(name) Expression*\
-name(Env& env, Context& ctx, Signature sig, const string& path, size_t line, Backtrace* backtrace)
+name(Env& env, Env& d_env, Context& ctx, Signature sig, ParserState pstate, Backtrace* backtrace)
 
 namespace Sass {
   class Context;
-  class Backtrace;
+  struct Backtrace;
   class AST_Node;
   class Expression;
   class Definition;
   typedef Environment<AST_Node*> Env;
   typedef const char* Signature;
-  typedef Expression* (*Native_Function)(Env&, Context&, Signature, const string&, size_t, Backtrace*);
+  typedef Expression* (*Native_Function)(Env&, Env&, Context&, Signature, ParserState, Backtrace*);
 
-  Definition* make_native_function(Signature, Native_Function, Context&);
-  Definition* make_c_function(Signature sig, Sass_C_Function f, Context& ctx);
+  Definition* make_native_function(Signature, Native_Function, Context& ctx);
+  Definition* make_c_function(Sass_Function_Entry c_func, Context& ctx);
 
   namespace Functions {
 
@@ -60,6 +57,12 @@ namespace Sass {
     extern Signature ie_hex_str_sig;
     extern Signature unquote_sig;
     extern Signature quote_sig;
+    extern Signature str_length_sig;
+    extern Signature str_insert_sig;
+    extern Signature str_index_sig;
+    extern Signature str_slice_sig;
+    extern Signature to_upper_case_sig;
+    extern Signature to_lower_case_sig;
     extern Signature percentage_sig;
     extern Signature round_sig;
     extern Signature ceil_sig;
@@ -67,20 +70,38 @@ namespace Sass {
     extern Signature abs_sig;
     extern Signature min_sig;
     extern Signature max_sig;
+    extern Signature inspect_sig;
+    extern Signature random_sig;
     extern Signature length_sig;
     extern Signature nth_sig;
     extern Signature index_sig;
     extern Signature join_sig;
     extern Signature append_sig;
     extern Signature zip_sig;
-    extern Signature compact_sig;
+    extern Signature list_separator_sig;
     extern Signature type_of_sig;
     extern Signature unit_sig;
     extern Signature unitless_sig;
     extern Signature comparable_sig;
+    extern Signature variable_exists_sig;
+    extern Signature global_variable_exists_sig;
+    extern Signature function_exists_sig;
+    extern Signature mixin_exists_sig;
+    extern Signature feature_exists_sig;
+    extern Signature call_sig;
     extern Signature not_sig;
     extern Signature if_sig;
     extern Signature image_url_sig;
+    extern Signature map_get_sig;
+    extern Signature map_merge_sig;
+    extern Signature map_remove_sig;
+    extern Signature map_keys_sig;
+    extern Signature map_values_sig;
+    extern Signature map_has_key_sig;
+    extern Signature keywords_sig;
+    extern Signature set_nth_sig;
+    extern Signature unique_id_sig;
+    extern Signature is_superselector_sig;
 
     BUILT_IN(rgb);
     BUILT_IN(rgba_4);
@@ -111,6 +132,12 @@ namespace Sass {
     BUILT_IN(ie_hex_str);
     BUILT_IN(sass_unquote);
     BUILT_IN(sass_quote);
+    BUILT_IN(str_length);
+    BUILT_IN(str_insert);
+    BUILT_IN(str_index);
+    BUILT_IN(str_slice);
+    BUILT_IN(to_upper_case);
+    BUILT_IN(to_lower_case);
     BUILT_IN(percentage);
     BUILT_IN(round);
     BUILT_IN(ceil);
@@ -118,20 +145,40 @@ namespace Sass {
     BUILT_IN(abs);
     BUILT_IN(min);
     BUILT_IN(max);
+    BUILT_IN(inspect);
+    BUILT_IN(random);
     BUILT_IN(length);
     BUILT_IN(nth);
     BUILT_IN(index);
     BUILT_IN(join);
     BUILT_IN(append);
     BUILT_IN(zip);
-    BUILT_IN(compact);
+    BUILT_IN(list_separator);
     BUILT_IN(type_of);
     BUILT_IN(unit);
     BUILT_IN(unitless);
     BUILT_IN(comparable);
+    BUILT_IN(variable_exists);
+    BUILT_IN(global_variable_exists);
+    BUILT_IN(function_exists);
+    BUILT_IN(mixin_exists);
+    BUILT_IN(feature_exists);
+    BUILT_IN(call);
     BUILT_IN(sass_not);
     BUILT_IN(sass_if);
     BUILT_IN(image_url);
+    BUILT_IN(map_get);
+    BUILT_IN(map_merge);
+    BUILT_IN(map_remove);
+    BUILT_IN(map_keys);
+    BUILT_IN(map_values);
+    BUILT_IN(map_has_key);
+    BUILT_IN(keywords);
+    BUILT_IN(set_nth);
+    BUILT_IN(unique_id);
+    BUILT_IN(is_superselector);
 
   }
 }
+
+#endif
