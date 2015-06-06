@@ -19,8 +19,17 @@ namespace NSass
 			{
 				ctx -> options.output_style = sassContext -> Options -> OutputStyle;
 				ctx -> options.source_comments = sassContext -> Options -> SourceComments;
+				ctx -> options.source_map_file = MarshalString(sassContext -> Options -> SourceMapFile);
+				ctx -> options.omit_source_map_url = sassContext -> Options -> OmitSourceMapUrl;
+				ctx -> options.source_map_embed = sassContext -> Options -> SourceMapEmbed;
+				ctx -> options.source_map_contents = sassContext -> Options -> SourceMapContents;
+				ctx -> options.source_map_root = MarshalString(sassContext -> Options -> SourceMapRoot);
+				ctx -> options.is_indented_syntax_src = sassContext -> Options -> IsIndentedSyntaxSrc;
 				ctx -> options.include_paths = MarshalString(sassContext -> Options -> IncludePaths);
-				ctx -> options.image_path = MarshalString(sassContext -> Options -> ImagePath);
+				ctx -> options.plugin_paths = MarshalString(sassContext -> Options -> PluginPaths);
+				ctx -> options.indent = MarshalString(sassContext -> Options -> Indent);
+				ctx -> options.linefeed = MarshalString(sassContext -> Options -> Linefeed);
+				ctx -> options.precision = sassContext -> Options -> Precision;
 			}
 
 			// Compile SASS using context provided
@@ -44,8 +53,12 @@ namespace NSass
 		finally
 		{
 			// Free resources
-			FreeString(ctx -> options.include_paths);
-			FreeString(ctx -> options.image_path);
+			FreeConstString(ctx -> options.source_map_file);
+			FreeConstString(ctx -> options.source_map_root);
+			FreeConstString(ctx -> options.include_paths);
+			FreeConstString(ctx -> options.plugin_paths);
+			FreeConstString(ctx -> options.indent);
+			FreeConstString(ctx -> options.linefeed);
 			FreeConstString(ctx -> source_string);
 			sass_free_context(ctx);
 		}
@@ -62,8 +75,17 @@ namespace NSass
 			{
 				ctx -> options.output_style = sassFileContext -> Options -> OutputStyle;
 				ctx -> options.source_comments = sassFileContext -> Options -> SourceComments;
+				ctx -> options.source_map_file = MarshalString(sassFileContext -> Options -> SourceMapFile);
+				ctx -> options.omit_source_map_url = sassFileContext -> Options -> OmitSourceMapUrl;
+				ctx -> options.source_map_embed = sassFileContext -> Options -> SourceMapEmbed;
+				ctx -> options.source_map_contents = sassFileContext -> Options -> SourceMapContents;
+				ctx -> options.source_map_root = MarshalString(sassFileContext -> Options -> SourceMapRoot);
+				ctx -> options.is_indented_syntax_src = sassFileContext -> Options -> IsIndentedSyntaxSrc;
 				ctx -> options.include_paths = MarshalString(sassFileContext -> Options -> IncludePaths);
-				ctx -> options.image_path = MarshalString(sassFileContext -> Options -> ImagePath);
+				ctx -> options.plugin_paths = MarshalString(sassFileContext -> Options -> PluginPaths);
+				ctx -> options.indent = MarshalString(sassFileContext -> Options -> Indent);
+				ctx -> options.linefeed = MarshalString(sassFileContext -> Options -> Linefeed);
+				ctx -> options.precision = sassFileContext -> Options -> Precision;
 			}
 
 			// Compile SASS using context provided
@@ -87,9 +109,13 @@ namespace NSass
 		finally
 		{
 			// Free resources
-			FreeString(ctx -> options.include_paths);
-			FreeString(ctx -> options.image_path);
-			FreeString(ctx -> input_path);
+			FreeConstString(ctx -> options.source_map_file);
+			FreeConstString(ctx -> options.source_map_root);
+			FreeConstString(ctx -> options.include_paths);
+			FreeConstString(ctx -> options.plugin_paths);
+			FreeConstString(ctx -> options.indent);
+			FreeConstString(ctx -> options.linefeed);
+			FreeConstString(ctx -> input_path);
 			sass_free_file_context(ctx);
 		}
 	}
@@ -107,8 +133,17 @@ namespace NSass
 			{
 				ctx -> options.output_style = sassFolderContext -> Options -> OutputStyle;
 				ctx -> options.source_comments = sassFolderContext -> Options -> SourceComments;
+				ctx -> options.source_map_file = MarshalString(sassFolderContext -> Options -> SourceMapFile);
+				ctx -> options.omit_source_map_url = sassFolderContext -> Options -> OmitSourceMapUrl;
+				ctx -> options.source_map_embed = sassFolderContext -> Options -> SourceMapEmbed;
+				ctx -> options.source_map_contents = sassFolderContext -> Options -> SourceMapContents;
+				ctx -> options.source_map_root = MarshalString(sassFolderContext -> Options -> SourceMapRoot);
+				ctx -> options.is_indented_syntax_src = sassFolderContext -> Options -> IsIndentedSyntaxSrc;
 				ctx -> options.include_paths = MarshalString(sassFolderContext -> Options -> IncludePaths);
-				ctx -> options.image_path = MarshalString(sassFolderContext -> Options -> ImagePath);
+				ctx -> options.plugin_paths = MarshalString(sassFolderContext -> Options -> PluginPaths);
+				ctx -> options.indent = MarshalString(sassFolderContext -> Options -> Indent);
+				ctx -> options.linefeed = MarshalString(sassFolderContext -> Options -> Linefeed);
+				ctx -> options.precision = sassFolderContext -> Options -> Precision;
 			}
 
 			// Compile SASS using context provided
@@ -132,10 +167,13 @@ namespace NSass
 		finally
 		{
 			// Free resources
-			FreeString(ctx -> options.include_paths);
-			FreeString(ctx -> options.image_path);
-			//FreeString(ctx -> output_path);
-			FreeString(ctx -> search_path);
+			FreeConstString(ctx -> options.source_map_file);
+			FreeConstString(ctx -> options.source_map_root);
+			FreeConstString(ctx -> options.include_paths);
+			FreeConstString(ctx -> options.plugin_paths);
+			FreeConstString(ctx -> options.indent);
+			FreeConstString(ctx -> options.linefeed);
+			FreeConstString(ctx -> search_path);
 			sass_free_folder_context(ctx);
 		}
 	}*/

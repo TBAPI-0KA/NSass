@@ -9,8 +9,17 @@ namespace NSass
 		public:
 			property int OutputStyle;
 			property bool SourceComments;
+			property String^ SourceMapFile;
+			property bool OmitSourceMapUrl;
+			property bool SourceMapEmbed;
+			property bool SourceMapContents;
+			property String^ SourceMapRoot;
+			property bool IsIndentedSyntaxSrc;
 			property String^ IncludePaths;
-			property String^ ImagePath;
+			property String^ PluginPaths;
+			property String^ Indent;
+			property String^ Linefeed;
+			property int Precision;
 	};
 
 	public ref class SassContext
