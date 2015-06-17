@@ -2,6 +2,7 @@
 /NSass.LibSass/NSass.LibSass.vcxproj.user
 /NSass.Wrapper/NSass.Wrapper.vcxproj.filters
 /NSass.Wrapper/NSass.Wrapper.vcxproj.user
+/NSass.Core/NSass.Core.csproj.user
 /NSass.Handler/NSass.Handler.csproj.user
 /NSass.Optimization/NSass.Optimization.csproj.user
 /NSass.Tool/NSass.Tool.csproj.user

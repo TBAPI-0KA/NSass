@@ -15,6 +15,7 @@ namespace NSass
 		{
 			// Copy fields from managed structure to unmanaged
 			ctx -> source_string = MarshalConstString(sassContext -> SourceString);
+			//ctx -> included_files = MarshalStringArray(gcnew array<String^>(0));
 			if (sassContext -> Options)
 			{
 				ctx -> options.output_style = sassContext -> Options -> OutputStyle;
@@ -59,8 +60,10 @@ namespace NSass
 			FreeConstString(ctx -> options.plugin_paths);
 			FreeConstString(ctx -> options.indent);
 			FreeConstString(ctx -> options.linefeed);
-			FreeConstString(ctx -> source_string);
-			sass_free_context(ctx);
+			// Any of the lines below leads to heap crash for unknown reasons. Commenting them may lead to memory leaks, but I haven't found better solution yet.
+			//FreeConstString(ctx -> source_string);
+			//FreeStringArray(ctx -> included_files, 0);
+			//sass_free_context(ctx);
 		}
 	}
 

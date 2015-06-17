@@ -9,4 +9,7 @@ namespace NSass
 
 	const char* MarshalConstString(String^ s);
 	void FreeConstString(const char* p);
+
+	char** MarshalStringArray(array<String^>^ s);
+	void FreeStringArray(char** p, int length);
 }

@@ -37,8 +37,17 @@ namespace NSass
 				{
 					OutputStyle = (int)outputStyle,
 					SourceComments = sourceComments,
+					SourceMapFile = String.Empty,
+					OmitSourceMapUrl = true,
+					SourceMapEmbed = false,
+					SourceMapContents = false,
+					SourceMapRoot = String.Empty,
+					IsIndentedSyntaxSrc = false,
 					IncludePaths = includePaths != null ? String.Join(";", includePaths) : String.Empty,
-					ImagePath = String.Empty
+					PluginPaths = String.Empty,
+					Indent = String.Empty,
+					Linefeed = String.Empty,
+					Precision = 0
 				}
 			};
 
@@ -73,8 +82,17 @@ namespace NSass
 				{
 					OutputStyle = (int)outputStyle,
 					SourceComments = sourceComments,
+					SourceMapFile = String.Empty,
+					OmitSourceMapUrl = true,
+					SourceMapEmbed = false,
+					SourceMapContents = false,
+					SourceMapRoot = String.Empty,
+					IsIndentedSyntaxSrc = false,
 					IncludePaths = String.Join(";", includePaths),
-					ImagePath = String.Empty
+					PluginPaths = String.Empty,
+					Indent = String.Empty,
+					Linefeed = String.Empty,
+					Precision = 0
 				}
 			};
 
