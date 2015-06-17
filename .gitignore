@@ -22,6 +22,7 @@
 /Tests/bin/
 /Tests/NSass.Core.Tests/obj/
 /bin/
+/packages/
 /NuGet/NSass.Core.*.nupkg
 /NuGet/NSass.Handler.*.nupkg
 /NuGet/NSass.Optimization.*.nupkg
