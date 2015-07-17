@@ -33,10 +33,6 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="NSass.Wrapper.proxy, Version=0.0.1.0, Culture=neutral, processorArchitecture=x86">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\bin\Debug\NSass.Wrapper.proxy.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
@@ -49,6 +45,12 @@
     <Compile Include="SassCompileException.cs" />
     <Compile Include="SassCompiler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NSass.Wrapper\NSass.Wrapper.vcxproj">
+      <Project>{e8f67215-df8d-43a2-ac03-f7e79b863095}</Project>
+      <Name>NSass.Wrapper</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
